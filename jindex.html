@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Análise de Retidos - Diario Completo Online</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-dark: #1e293b;
+            --border-color: #334155;
+            --text-main: #f1f5f9;
+            --text-dim: #94a3b8;
+            --accent: #3b82f6;
+            --success: #10b981;
+            --danger: #991b1b;
+            --warning: #854d0e;
+            --alert-orange: #f59e0b;
+            --input-bg: #0f172a;
+        }
+
+        body.light-mode {
+            --bg-dark: #f8fafc;
+            --panel-dark: #ffffff;
+            --border-color: #cbd5e1;
+            --text-main: #0f172a;
+            --text-dim: #475569;
+            --accent: #2563eb;
+            --input-bg: #ffffff;
+        }
+
+        body.large-font { font-size: 14px; }
+        body.large-font table { font-size: 13px; }
+        body.large-font .label-tool { font-size: 12px; }
+        body.large-font .btn-action, body.large-font .retida-btn { font-size: 13px; }
+        body.large-font .obs-input, body.large-font .search-input, body.large-font .column-filter, body.large-font .filter-analise, body.large-font .select-act, body.large-font .selectBox-top { font-size: 13px; }
+
+        body { font-family: 'Inter', sans-serif; margin: 0; background-color: var(--bg-dark); color: var(--text-main); transition: background-color 0.3s; }
+        .container { padding: 20px; }
+
+        .top-panel { 
+            background: var(--panel-dark); border: 1px solid var(--border-color); padding: 15px; 
+            border-radius: 12px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;
+        }
+
+        .tool-section { display: flex; align-items: center; gap: 10px; }
+        .label-tool { font-size: 11px; color: var(--text-dim); font-weight: bold; text-transform: uppercase; }
+
+        .stats-panel { background: var(--bg-dark); padding: 8px 15px; border-radius: 8px; border: 1px solid var(--accent); font-weight: bold; font-size: 12px; text-align: center;}
+        .stats-panel span { color: var(--accent); }
+
+        .btn-group { background: var(--bg-dark); padding: 4px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; }
+        .retida-btn { padding: 8px 15px; border: none; border-radius: 6px; cursor: pointer; background: transparent; color: var(--text-dim); font-weight: 600; font-size: 11px; transition: 0.2s;}
+        .retida-btn.active { background: var(--accent); color: white; }
+        
+        .btn-sem-foto { background: var(--bg-dark); padding: 8px 15px; border-radius: 8px; border: 1px solid var(--accent); font-weight: bold; font-size: 12px; text-align: center; color: var(--text-dim); cursor: pointer;}
+        .btn-sem-foto.active { background: var(--accent); color: white;}
+        
+        .btn-action { color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; transition: opacity 0.2s; }
+        .btn-action:hover { opacity: 0.8; }
+        .btn-danger { background: var(--danger); }
+        .btn-success { background: var(--success); }
+        .btn-theme { background: var(--border-color); color: var(--text-main); }
+        .btn-disk { background: #6366f1; }
+
+        .multiselect-top { position: relative; width: 180px; }
+        .selectBox-top { 
+            background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 8px; 
+            padding: 8px 12px; cursor: pointer; color: var(--text-main); font-size: 11px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .checkboxes-dropdown { 
+            display: none; position: absolute; z-index: 9999; background: var(--panel-dark); 
+            border: 1px solid var(--accent); border-radius: 8px; width: 100%; top: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); padding: 10px; max-height: 300px; overflow-y: auto;
+        }
+        .checkboxes-dropdown label { display: flex; align-items: center; gap: 8px; padding: 5px; cursor: pointer; font-size: 11px; }
+
+        .table-container { border-radius: 8px; border: 1px solid var(--border-color); background: var(--panel-dark); overflow: auto; max-height: 70vh; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th { background-color: var(--panel-dark); color: var(--text-dim); padding: 10px; text-align: left; border-bottom: 2px solid var(--border-color); position: sticky; top: 0; z-index: 10; }
+        td { border-bottom: 1px solid var(--border-color); padding: 6px 8px; white-space: nowrap; font-weight: 600; letter-spacing: 0.3px; }
+        
+        .no-photo { background-color: var(--danger) !important; color: white !important; font-weight: bold; text-align: center; }
+        tr.completed { border-left: 4px solid var(--success); } 
+        tr.row-done { opacity: 0.6; } 
+        tr.row-highlighted { background-color: rgba(59, 130, 246, 0.15) !important; outline: 1px solid var(--accent); }
+        tr.row-fotos-solicitada { outline: 2px solid #fbc02d; }
+        tr.row-fotos-solicitada td { background-color: rgba(251, 192, 45, 0.25) !important; color: #ffffff !important; }
+        
+        .check-final { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+        .obs-input, .search-input { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px; font-size: 11px; }
+        .column-filter, .filter-analise { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px; width: auto; font-size: 11px; font-weight: bold;}
+
+        .select-act { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 16px; width: 100%; min-width: 220px; font-size: 12px; font-weight: bold; cursor: pointer; }
+        .base-select { background: var(--input-bg); color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; padding: 8px 12px; font-size: 12px; font-weight: bold; cursor: pointer; outline: none; }
+        
+        .load-more-container { padding: 15px; text-align: center; background: var(--panel-dark); border-top: 1px solid var(--border-color); }
+        .btn-load { background: var(--accent); color: white; border: none; padding: 10px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
+        .right-group { margin-left: auto; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end;}
+        .col-hidden { display: none !important; }
+    </style>
+</head>
+<body class="dark-mode">
+
+<div class="container">
+    <div class="top-panel">
+        <div class="tool-section">
+            <button class="btn-action btn-theme" onclick="toggleTheme()">🌓 TEMA</button>
+            <button class="btn-action btn-theme" onclick="toggleFontSize()">🔎 FONTE</button>
+        </div>
+
+        <div class="tool-section">
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+        </div>
+
+        <div class="tool-section">
+            <span class="label-tool">Retida:</span>
+            <div class="btn-group">
+                <button class="retida-btn active" id="btnSim" onclick="toggleRetida('SIM')">SIM</button>
+                <button class="retida-btn" id="btnNao" onclick="toggleRetida('NÃO')">NÃO</button>
+                <button class="retida-btn" id="btnTodos" onclick="toggleRetida('TODOS')">TODOS</button>
+            </div>
+        </div>
+
+        <div class="tool-section">
+            <button class="btn-sem-foto" id="btnSemFoto" onclick="toggleSemFoto()">SÓ SEM FOTO</button>
+            <button class="btn-sem-foto" id="btnOcultarOk" onclick="toggleOcultarOk()">OCULTAR OK</button>
+        </div>
+
+        <div class="tool-section">
+            <span class="label-tool">ATC:</span>
+            <div class="multiselect-top">
+                <div class="selectBox-top" onclick="toggleDropdown('checkboxes-atc', event)"><span id="lblAtc">TODOS OS ATCs</span> ▾</div>
+                <div id="checkboxes-atc" class="checkboxes-dropdown"></div>
+            </div>
+        </div>
+
+        <div class="tool-section">
+            <span class="label-tool">Análise:</span>
+            <div class="multiselect-top">
+                <div class="selectBox-top" onclick="toggleDropdown('checkboxes-analise', event)"><span id="lblAnalise">TODOS OS FILTROS</span> ▾</div>
+                <div id="checkboxes-analise" class="checkboxes-dropdown"></div>
+            </div>
+        </div>
+
+        <div class="tool-section">
+            <span class="label-tool">Colunas:</span>
+            <div class="multiselect-top">
+                <div class="selectBox-top" onclick="toggleDropdown('checkboxes-cols', event)"><span id="lblCols">Mostrar/Ocultar</span> ▾</div>
+                <div id="checkboxes-cols" class="checkboxes-dropdown"></div>
+            </div>
+        </div>
+
+        <div class="stats-panel">OK: <span id="doneCount">0</span> / <span id="totalCount">0</span></div>
+
+        <div class="right-group">
+            <span class="label-tool">BASE:</span>
+            <select id="baseSelector" class="base-select">
+                <option value="SJC">SÃO JOSÉ DOS CAMPOS</option>
+                <option value="TAUBATE">TAUBATÉ</option>
+                <option value="CACAPAVA">CAÇAPAVA</option>
+                <option value="TODOS">TODOS (Consolidar Nuvem)</option>
+            </select>
+            
+            <button class="btn-action btn-disk" onclick="exportProgress()">💾 SALVAR LOCAL</button>
+            <input type="file" id="importStatus" accept=".json" style="display:none" onchange="importProgress(event)">
+            <button class="btn-action btn-disk" onclick="document.getElementById('importStatus').click()">📂 ABRIR LOCAL</button>
+            <button class="btn-action btn-success" onclick="exportToExcel()">📊 EXCEL</button>
+            <button class="btn-action btn-danger" onclick="clearAllData()">🗑️ LIMPAR</button>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table id="mainTable">
+            <thead><tr id="headerRow"></tr></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+        <div id="loadMoreArea" class="load-more-container" style="display:none;">
+            <button class="btn-load" onclick="loadNextBatch()">Carregar Mais 100 Registros</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- CONFIGURAÇÃO SUPABASE ---
+    const supabaseUrl = 'https://zyxyspjmnpiplilqipge.supabase.co';
+    const supabaseKey = 'sb_publishable_4TERr9CjOKC9Hegrc8069A_TV7uuG3s';
+    const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    const STORAGE_KEY = 'tace_analytics_master_db';
+    const DATA_CACHE_KEY = 'tace_analytics_raw_data';
+    
+    // --- CONFIGURAÇÃO DE COLUNAS E CORES ---
+    const colunasExibicao = [
+        "OK", "ATC", "Nome do TACE", "Codigo do Fornecimento", "Endereço", 
+        "Tipo de Mercado", "Hidrômetro", "Leitura", "Leitura anterior", 
+        "Consumo Medido", "Período de consumo", "Média de consumo", 
+        "Fatura Retida", "Causa de Retenção", "Obs/Leitura Retida", 
+        "Observação Geral", "Total de Fotos"
+    ];
+    
+    const colComFiltro = ["ATC", "Nome do TACE", "Endereço", "Hidrômetro", "Tipo de Mercado"]; 
+    const opcoesAnalise = ["CONSUMO DENTRO DA MÉDIA DO IMÓVEL",'GRANDE CONSUMIDOR', "FOTOS SOLICITADA","LEITURA CONFIRMADA", "RELEITURA INCLUSÃO DE FOTOS", "RELEITURA SOLICITADA","RELEITURA VIA TACE","AÇÃO DA SABESP","HIDROMETRO AVARIADO"];
+    const codigosIgnorados = ["40501","40506","40507","40508","41501","41502","40500","41506","41508","42501","43511","43513","44500","4550","41500","42509","230"];
+    
+    const excelColors = {
+        'CONSUMO DENTRO DA MÉDIA DO IMÓVEL': { bg: '2E7D32', fg: '000000' },
+        'FOTOS SOLICITADA':                 { bg: 'FBC02D', fg: '000000' },
+        'GRANDE CONSUMIDOR':                { bg: 'FFC5D3', fg: '000000' },
+        'LEITURA CONFIRMADA':               { bg: '88e788', fg: '000000' },
+        'RELEITURA INCLUSÃO DE FOTOS':      { bg: '1565C0', fg: '000000' },
+        'RELEITURA SOLICITADA':             { bg: '6A1B9A', fg: '000000' },
+        'RELEITURA VIA TACE':               { bg: '7986CB', fg: '000000' },
+        'AÇÃO DA SABESP':                   { bg: 'd10000', fg: '000000' },
+        'HIDROMETRO AVARIADO':              { bg: '4E342E', fg: '000000' }
+    };
+
+    let dadosPlanilha = [];
+    let dadosFiltrados = [];
+    let indexAtual = 0;
+    const TAMANHO_LOTE = 100;
+    let filtroRetida = 'SIM'; 
+    let filtroSoSemFoto = false;
+    let filtroOcultarOk = false;
+    let colunasInvisiveis = []; 
+    let debounceTimer;
+    let debounceObsTimer;
+
+    // --- CARREGAMENTO INICIAL DO BANCO DE DADOS ---
+    async function carregarDoBanco() {
+        const { data, error } = await supabaseClient.from('tace_analises').select('*').limit(10000);
+        
+        if (error) {
+            console.error("Erro ao buscar dados do Supabase:", error);
+            return;
+        }
+
+        if (data && data.length > 0) {
+            let savedData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            data.forEach(row => {
+                savedData[row.codigo_fornecimento] = {
+                    ok: row.ok,
+                    s1: row.status_foto || "",
+                    s2: row.analise_tecnica || "",
+                    obs: row.observacao || "",
+                    operador: row.operador || ""
+                };
+            });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(savedData));
+            
+            // Re-aplica filtros se a tabela já estiver montada na tela
+            if (dadosPlanilha.length > 0) {
+                applyFilters();
+            }
+        }
+    }
+
+    // --- ESCUTA EM TEMPO REAL (REALTIME) ---
+    supabaseClient
+        .channel('tabela-analises')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tace_analises' }, payload => {
+            const linha = payload.new;
+            let savedData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            
+            // Atualiza memória local
+            savedData[linha.codigo_fornecimento] = {
+                ok: linha.ok,
+                s1: linha.status_foto || "",
+                s2: linha.analise_tecnica || "",
+                obs: linha.observacao || "",
+                operador: linha.operador || ""
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(savedData));
+            
+            // Atualiza a linha visual na tabela instantaneamente se ela estiver visível
+            atualizarLinhaVisual(linha);
+            updateStats();
+        })
+        .subscribe();
+
+    function atualizarLinhaVisual(linha) {
+        const tr = document.querySelector(`tr[data-id="${linha.codigo_fornecimento}"]`);
+        if (tr) {
+            const check = tr.querySelector('.check-final');
+            const selects = tr.querySelectorAll('.select-act');
+            const obs = tr.querySelector('.obs-input');
+            
+            if (check) check.checked = linha.ok;
+            if (selects[0]) selects[0].value = linha.status_foto || "";
+            if (selects[1]) {
+                selects[1].value = linha.analise_tecnica || "";
+                updateAnaliseColor(selects[1]);
+                
+                if (linha.analise_tecnica && linha.operador) {
+                    selects[1].parentElement.title = `Última alteração por: ${linha.operador}`;
+                } else {
+                    selects[1].parentElement.removeAttribute('title');
+                }
+            }
+            if (obs) obs.value = linha.observacao || "";
+            
+            tr.classList.toggle('row-done', linha.ok);
+            tr.classList.toggle('completed', (linha.status_foto && linha.analise_tecnica));
+            tr.classList.toggle('row-fotos-solicitada', linha.analise_tecnica === "FOTOS SOLICITADA");
+            
+            if (filtroOcultarOk && linha.ok) {
+                tr.style.display = 'none';
+            }
+        }
+    }
+
+    // --- INTERFACE E CONTROLES ---
+    function toggleTheme() { document.body.classList.toggle('light-mode'); }
+    function toggleFontSize() { document.body.classList.toggle('large-font'); }
+
+    function setupAnaliseFilter() {
+        const container = document.getElementById('checkboxes-analise');
+        let html = `<label><input type="checkbox" value="(Vazio)" onchange="applyFilters()"> (VAZIO)</label>`;
+        opcoesAnalise.forEach(o => { html += `<label><input type="checkbox" value="${o}" onchange="applyFilters()"> ${o.toUpperCase()}</label>`; });
+        container.innerHTML = html;
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        setupAnaliseFilter();
+        
+        // Puxa histórico do banco assim que abrir
+        await carregarDoBanco();
+
+        const cachedData = localStorage.getItem(DATA_CACHE_KEY);
+        if (cachedData) {
+            try {
+                dadosPlanilha = JSON.parse(cachedData);
+                buildHeader();
+                populateATC();
+                populateColumnManager();
+                applyFilters();
+            } catch(e) {}
+        }
+    });
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = new ExcelJS.Workbook();
+            workbook.xlsx.load(data).then(workbook => {
+                const sheet = workbook.worksheets[0];
+                dadosPlanilha = [];
+                const headerRow = sheet.getRow(4).values;
+                
+                sheet.eachRow((row, rowNumber) => {
+                    if (rowNumber <= 4) return;
+                    let rowData = {};
+                    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                        const colName = headerRow[colNumber];
+                        if (colName) rowData[colName] = cell.value === null ? "" : cell.value;
+                    });
+
+                    // Verifica se o texto contém algum dos códigos de inativos
+                    const valorCO1 = String(rowData["CO1 Atual"] || rowData["Obs. Atual CO1"] || "");
+                    const ehInativo = codigosIgnorados.some(codigo => valorCO1.includes(codigo));
+
+                    if (Object.keys(rowData).length > 0 && !ehInativo) {
+                        let cleanObj = {};
+                        colunasExibicao.forEach(col => { cleanObj[col] = rowData[col] || ""; });
+                        dadosPlanilha.push(cleanObj);
+                    }
+                });
+                try { localStorage.setItem(DATA_CACHE_KEY, JSON.stringify(dadosPlanilha)); } catch(err) {}
+                buildHeader();
+                populateATC();
+                populateColumnManager();
+                applyFilters();
+            });
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    function toggleDropdown(id, e) {
+        e.stopPropagation();
+        const drop = document.getElementById(id);
+        const isVisible = drop.style.display === "block";
+        document.querySelectorAll('.checkboxes-dropdown').forEach(d => d.style.display = "none");
+        drop.style.display = isVisible ? "none" : "block";
+    }
+
+    function populateATC() {
+        const atcs = [...new Set(dadosPlanilha.map(i => String(i["ATC"] || "").trim()))].filter(Boolean).sort();
+        document.getElementById('checkboxes-atc').innerHTML = atcs.map(a => `<label><input type="checkbox" value="${a}" onchange="applyFilters()"> ${a}</label>`).join('');
+    }
+
+    function populateColumnManager() {
+        const container = document.getElementById('checkboxes-cols');
+        container.innerHTML = colunasExibicao.slice(1).map(col => `
+            <label><input type="checkbox" checked value="${col}" onchange="toggleColumnVisibility('${col}')"> ${col}</label>
+        `).join('') + `
+            <hr style="border-color: var(--border-color); margin: 5px 0;">
+            <label><input type="checkbox" checked value="Status Foto" onchange="toggleColumnVisibility('Status Foto')"> Status Foto</label>
+            <label><input type="checkbox" checked value="Análise Técnica" onchange="toggleColumnVisibility('Análise Técnica')"> Análise Técnica</label>
+            <label><input type="checkbox" checked value="Minha Obs" onchange="toggleColumnVisibility('Minha Obs')"> Minha Obs</label>
+            <label><input type="checkbox" checked value="OK" onchange="toggleColumnVisibility('OK')"> OK</label>
+        `;
+    }
+
+    function toggleColumnVisibility(colName) {
+        if (colunasInvisiveis.includes(colName)) colunasInvisiveis = colunasInvisiveis.filter(c => c !== colName);
+        else colunasInvisiveis.push(colName);
+        buildHeader();
+        indexAtual = 0;
+        document.getElementById('tableBody').innerHTML = '';
+        loadNextBatch();
+    }
+
+    function buildHeader() {
+        const hr = document.getElementById('headerRow');
+        hr.innerHTML = '';
+        colunasExibicao.forEach((c, index) => {
+            let th = document.createElement('th');
+            if (colunasInvisiveis.includes(c)) th.classList.add('col-hidden');
+            th.innerHTML = c;
+            if(c === "Codigo do Fornecimento") {
+                th.innerHTML += `<br><input type="text" class="search-input" placeholder="Buscar..." oninput="debounceFilter()">`;
+            } else if(colComFiltro.includes(c)) {
+                let vals = [...new Set(dadosPlanilha.map(i => String(i[c] || "").trim()))].sort();
+                th.innerHTML += `<br><select class="column-filter" data-colindex="${index}" onchange="applyFilters()"><option value="">(Todos)</option>${vals.map(v => `<option value="${v}">${v}</option>`).join('')}</select>`;
+            }
+            hr.appendChild(th);
+        });
+        ["Status Foto", "Análise Técnica", "Minha Obs"].forEach(ext => {
+            let th = document.createElement('th');
+            if (colunasInvisiveis.includes(ext)) th.classList.add('col-hidden');
+            th.innerHTML = ext;
+            hr.appendChild(th);
+        });
+    }
+
+    function debounceFilter() { clearTimeout(debounceTimer); debounceTimer = setTimeout(applyFilters, 300); }
+    function debounceSaveRow(el) { clearTimeout(debounceObsTimer); debounceObsTimer = setTimeout(() => { saveRow(el); }, 600); }
+
+    function applyFilters() {
+        const searchInput = document.querySelector('.search-input');
+        const search = searchInput ? searchInput.value.toUpperCase() : "";
+        const checkedATC = Array.from(document.querySelectorAll('#checkboxes-atc input:checked')).map(i => i.value.toUpperCase());
+        const checkedAnalise = Array.from(document.querySelectorAll('#checkboxes-analise input:checked')).map(i => i.value);
+        const filters = document.querySelectorAll('.column-filter');
+        let actFilters = [];
+        filters.forEach(f => { if(f.value) actFilters.push({ index: parseInt(f.dataset.colindex), value: f.value.toUpperCase() }); });
+
+        const savedData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+
+        dadosFiltrados = dadosPlanilha.filter(item => {
+            const rowId = String(item["Codigo do Fornecimento"]);
+            if (search && !String(item["Codigo do Fornecimento"]).toUpperCase().includes(search)) return false;
+            if (filtroRetida !== 'TODOS' && String(item["Fatura Retida"]).toUpperCase() !== filtroRetida) return false;
+            
+            if (filtroSoSemFoto) {
+                const f = item["Total de Fotos"];
+                if (!(f === "" || f === 0 || f === "0")) return false;
+            }
+            if (filtroOcultarOk) {
+                const state = savedData[rowId] || { ok: false };
+                if (state.ok) return false;
+            }
+            if (checkedATC.length > 0 && !checkedATC.includes(String(item["ATC"]).toUpperCase())) return false;
+            
+            for(let f of actFilters) { if (String(item[colunasExibicao[f.index]]).toUpperCase() !== f.value) return false; }
+            if (checkedAnalise.length > 0) {
+                const state = savedData[rowId] || { s2: "" };
+                const valorAnalise = state.s2 || "(Vazio)";
+                if (!checkedAnalise.includes(valorAnalise)) return false;
+            }
+            return true;
+        });
+
+        document.getElementById('lblAnalise').innerText = checkedAnalise.length > 0 ? `${checkedAnalise.length} SELECIONADO(S)` : "TODOS OS FILTROS";
+        indexAtual = 0;
+        document.getElementById('tableBody').innerHTML = '';
+        loadNextBatch();
+        updateStats();
+    }
+
+    function loadNextBatch() {
+        const tb = document.getElementById('tableBody');
+        const savedData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        const fim = Math.min(indexAtual + TAMANHO_LOTE, dadosFiltrados.length);
+        const fragment = document.createDocumentFragment();
+
+        for (let i = indexAtual; i < fim; i++) {
+            const item = dadosFiltrados[i];
+            const rowId = String(item["Codigo do Fornecimento"] || "idx-" + i);
+            const state = savedData[rowId] || { ok: false, s1: "", s2: "", obs: "", operador: "" };
+            
+            let tr = document.createElement('tr');
+            tr.dataset.id = rowId;
+            tr.onclick = function(e) { if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') this.classList.toggle('row-highlighted'); };
+
+            if(state.ok) tr.classList.add('row-done');
+            if(state.s1 && state.s2) tr.classList.add('completed');
+            if(state.s2 === "FOTOS SOLICITADA") tr.classList.add('row-fotos-solicitada');
+
+            let tdOkClass = colunasInvisiveis.includes("OK") ? 'class="col-hidden"' : '';
+            let html = `<td ${tdOkClass}><input type="checkbox" class="check-final" ${state.ok ? 'checked' : ''} onchange="saveRow(this)"></td>`;
+            
+            colunasExibicao.slice(1).forEach(c => {
+                let val = item[c] || "";
+                let isNoFoto = (c === "Total de Fotos" && (val === "" || val === 0 || val === "0"));
+                let isHidden = colunasInvisiveis.includes(c);
+                let classes = [];
+                if(isNoFoto) classes.push("no-photo");
+                if(isHidden) classes.push("col-hidden");
+                let classAttr = classes.length > 0 ? `class="${classes.join(' ')}"` : '';
+                html += `<td ${classAttr}>${isNoFoto ? 'SEM FOTO' : val}</td>`;
+            });
+
+            let tooltipAnalise = (state.s2 && state.operador) ? `title="Última alteração por: ${state.operador}"` : "";
+
+            html += `
+                <td ${colunasInvisiveis.includes('Status Foto') ? 'class="col-hidden"' : ''}><select class="select-act" onchange="saveRow(this)"><option value="">-</option><option ${state.s1==='Com fotos'?'selected':''}>Com fotos</option><option ${state.s1==='Erro anterior'?'selected':''}>Erro anterior</option><option ${state.s1==='Erro atual'?'selected':''}>Erro atual</option><option ${state.s1==='fotos no grupo'?'selected':''}>fotos no grupo</option><option ${state.s1==='Fotos sem nitidez'?'selected':''}>Fotos sem nitidez</option><option ${state.s1==='Hidro sem movimento'?'selected':''}>Hidro sem movimento</option><option ${state.s1==='Sem fotos'?'selected':''}>Sem fotos</option></select></td>
+                <td ${colunasInvisiveis.includes('Análise Técnica') ? 'class="col-hidden"' : ''} ${tooltipAnalise}><select class="select-act" onchange="saveRow(this)"><option value="">-</option>${opcoesAnalise.map(o => `<option ${state.s2===o?'selected':''}>${o}</option>`).join('')}</select></td>
+                <td ${colunasInvisiveis.includes('Minha Obs') ? 'class="col-hidden"' : ''}><input type="text" class="obs-input" value="${state.obs || ''}" onblur="saveRow(this)"></td>`;
+            
+            tr.innerHTML = html;
+            fragment.appendChild(tr);
+            updateAnaliseColor(tr.querySelectorAll('.select-act')[1]);
+        }
+        tb.appendChild(fragment);
+        indexAtual = fim;
+        document.getElementById('loadMoreArea').style.display = indexAtual < dadosFiltrados.length ? 'block' : 'none';
+    }
+
+    function updateAnaliseColor(sel) {
+        if(!sel) return;
+        const match = excelColors[sel.value];
+        if (match) { sel.style.backgroundColor = '#' + match.bg; sel.style.color = '#' + match.fg; } 
+        else { sel.style.backgroundColor = ''; sel.style.color = ''; }
+    }
+
+    // --- FUNÇÃO SAVEROW ATUALIZADA (BANCO + REALTIME + TRACKING DE OPERADOR) ---
+    async function saveRow(el) {
+        const tr = el.closest('tr');
+        const rowId = tr.dataset.id;
+        const ok = tr.querySelector('.check-final').checked;
+        const selects = tr.querySelectorAll('.select-act');
+        const obs = tr.querySelector('.obs-input').value;
+
+        let operador = localStorage.getItem('tace_operador_name');
+        if (!operador) {
+            operador = prompt("Digite seu nome (sem espaços ou acentos) para identificar seu progresso:");
+            if (operador) {
+                operador = operador.trim().replace(/[^a-zA-Z0-9]/g, '');
+                localStorage.setItem('tace_operador_name', operador);
+            } else {
+                operador = "Anonimo";
+            }
+        }
+
+        // Atualiza a UI e salva localmente de forma instantânea (para não ter delay no clique)
+        updateAnaliseColor(selects[1]);
+        tr.classList.toggle('row-done', ok);
+        tr.classList.toggle('completed', (selects[0] && selects[0].value) && (selects[1] && selects[1].value));
+        if(selects[1]) tr.classList.toggle('row-fotos-solicitada', selects[1].value === "FOTOS SOLICITADA");
+
+        if (selects[1] && selects[1].value && operador) {
+            selects[1].parentElement.title = `Última alteração por: ${operador}`;
+        } else if (selects[1]) {
+            selects[1].parentElement.removeAttribute('title');
+        }
+
+        let savedData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        savedData[rowId] = { ok, s1: selects[0].value, s2: selects[1].value, obs, operador };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedData));
+        
+        if(filtroOcultarOk && ok) { tr.style.display = 'none'; }
+        updateStats();
+
+        // Envia para o Banco de Dados do Supabase
+        const baseSelecionada = document.getElementById('baseSelector').value;
+
+        const { error } = await supabaseClient
+            .from('tace_analises')
+            .upsert({ 
+                codigo_fornecimento: rowId,
+                base: baseSelecionada,
+                operador: operador,
+                ok: ok,
+                status_foto: selects[0].value,
+                analise_tecnica: selects[1].value,
+                observacao: obs,
+                updated_at: new Date().toISOString()
+            });
+
+        if (error) console.error("Erro ao salvar no banco em tempo real:", error);
+    }
+
+    function updateStats() {
+        const savedData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        let done = 0;
+        dadosFiltrados.forEach(item => { if(savedData[String(item["Codigo do Fornecimento"])]?.ok) done++; });
+        document.getElementById('doneCount').innerText = done;
+        document.getElementById('totalCount').innerText = dadosFiltrados.length;
+    }
+
+    function toggleRetida(t) {
+        filtroRetida = t;
+        document.querySelectorAll('.retida-btn:not(.btn-sem-foto)').forEach(b => b.classList.remove('active'));
+        document.getElementById(t === 'SIM' ? 'btnSim' : t === 'NÃO' ? 'btnNao' : 'btnTodos').classList.add('active');
+        applyFilters();
+    }
+    
+    function toggleSemFoto() {
+        filtroSoSemFoto = !filtroSoSemFoto;
+        document.getElementById('btnSemFoto').classList.toggle('active', filtroSoSemFoto);
+        applyFilters();
+    }
+
+    function toggleOcultarOk() {
+        filtroOcultarOk = !filtroOcultarOk;
+        document.getElementById('btnOcultarOk').classList.toggle('active', filtroOcultarOk);
+        applyFilters();
+    }
+
+    function exportProgress() {
+        const data = localStorage.getItem(STORAGE_KEY);
+        if(!data) return alert("Nenhum progresso para salvar.");
+        
+        const baseSelecionada = document.getElementById('baseSelector').value;
+        const blob = new Blob([data], { type: "application/json" });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10);
+        const timeStr = String(now.getHours()).padStart(2, '0') + "h" + String(now.getMinutes()).padStart(2, '0');
+        
+        a.download = `Status_${baseSelecionada}_${dateStr}_${timeStr}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    function importProgress(event) {
+        const reader = new FileReader();
+        reader.onload = (e) => { 
+            try {
+                const dadosLocais = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+                const dadosImportados = JSON.parse(e.target.result);
+                const dadosMesclados = { ...dadosLocais, ...dadosImportados };
+                
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(dadosMesclados)); 
+                applyFilters(); 
+                alert("Status importado e mesclado com sucesso!");
+            } catch (err) {
+                alert("Erro ao ler o arquivo JSON.");
+            }
+        };
+        reader.readAsText(event.target.files[0]);
+        event.target.value = ''; 
+    }
+
+    function exportToExcel() {
+        try {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Análise backoffice');
+            const savedData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            const headers = colunasExibicao.slice(1);
+            
+            headers.push("Status Foto", "Análise Técnica", "Minha Obs", "Resposta Sabesp");
+
+            const headerRow = worksheet.addRow(headers);
+            headerRow.eachCell((cell) => {
+                cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E293B' } }; 
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            });
+            headerRow.height = 25;
+            
+            const dadosParaExportar = dadosPlanilha.filter(item => {
+                const id = String(item["Codigo do Fornecimento"]);
+                const state = savedData[id] || { s1: "", s2: "" };
+                return String(item["Fatura Retida"]).toUpperCase() === 'SIM' || (state.s1 !== "" && state.s2 !== "");
+            });
+            
+            const colStatusFotoNum = headers.indexOf("Status Foto") + 1;
+            const colAnaliseTecnicaNum = headers.indexOf("Análise Técnica") + 1;
+
+            const opcoesStatusFoto = ["Com fotos", "Erro anterior", "Erro atual", "fotos no grupo", "Fotos sem nitidez", "Hidro sem movimento", "Sem fotos"];
+
+            dadosParaExportar.forEach((item, index) => {
+                const id = String(item["Codigo do Fornecimento"]);
+                const state = savedData[id] || { s1: "", s2: "", obs: "" };
+                const rowData = colunasExibicao.slice(1).map(c => item[c]);
+                
+                rowData.push(state.s1, state.s2, state.obs, "");
+
+                const insertedRow = worksheet.addRow(rowData);
+                insertedRow.height = 20;
+                const zebraColor = index % 2 === 0 ? 'C5D6E7' : 'FFFFFF';
+
+                insertedRow.eachCell((cell, colNumber) => {
+                    cell.font = { name: 'Arial', size: 10 };
+                    cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                    cell.border = { bottom: { style: 'thin', color: { argb: 'E2E8F0' } } };
+
+                    if (colNumber === colAnaliseTecnicaNum) {
+                        const opcoesExcel = [...opcoesAnalise, "RESOLVIDO"]; 
+                        cell.dataValidation = {
+                            type: 'list',
+                            allowBlank: true,
+                            formulae: [`"${opcoesExcel.join(',')}"`], 
+                            showErrorMessage: true,
+                            errorTitle: 'Opção Inválida',
+                            error: 'Por favor, selecione uma opção permitida da lista técnica.'
+                        };
+                    }
+
+                    if (colNumber === colStatusFotoNum) {
+                        cell.dataValidation = {
+                            type: 'list',
+                            allowBlank: true,
+                            formulae: [`"${opcoesStatusFoto.join(',')}"`],
+                            showErrorMessage: true,
+                            errorTitle: 'Opção Inválida',
+                            error: 'Por favor, selecione um status válido da lista.'
+                        };
+                    }
+
+                    if (colNumber >= (headers.length - 3) && colNumber <= (headers.length - 1)) {
+                        const match = excelColors[state.s2];
+                        if (match) {
+                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + match.bg.toUpperCase() } };
+                            cell.font = { color: { argb: 'FF' + match.fg.toUpperCase() }, bold: true, size: 10 };
+                            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                        } else {
+                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
+                        }
+                    } else if (colNumber === headers.length) {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+                    } else {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + zebraColor } };
+                    }
+                });
+            });
+
+            function getColumnLetter(index) {
+                let letter = '';
+                while (index > 0) {
+                    let temp = (index - 1) % 26;
+                    letter = String.fromCharCode(temp + 65) + letter;
+                    index = (index - temp - 1) / 26;
+                }
+                return letter;
+            }
+
+            const colStatusLetra = getColumnLetter(headers.length - 3);
+            const colAnaliseLetra = getColumnLetter(headers.length - 2);
+            const colObsLetra = getColumnLetter(headers.length - 1);
+            const colRespostaLetra = getColumnLetter(headers.length);
+            
+            worksheet.autoFilter = `A1:${colRespostaLetra}1`;
+            
+            const conditionalRules = [];
+
+            conditionalRules.push({
+                type: 'expression',
+                formulae: [`=$${colRespostaLetra}2<>""`],
+                style: {
+                    fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FF0BF436' } }, 
+                    font: { color: { argb: 'FFFFFFFF' }, bold: true } 
+                }
+            });
+
+            Object.keys(excelColors).forEach(opcao => {
+                const match = excelColors[opcao];
+                conditionalRules.push({
+                    type: 'expression',
+                    formulae: [`=$${colAnaliseLetra}2="${opcao}"`],
+                    style: {
+                        fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FF' + match.bg.toUpperCase() } },
+                        font: { color: { argb: 'FF' + match.fg.toUpperCase() }, bold: true }
+                    }
+                });
+            });
+
+            if (dadosParaExportar.length > 0) {
+                worksheet.addConditionalFormatting({
+                    ref: `${colStatusLetra}2:${colObsLetra}${dadosParaExportar.length + 1}`,
+                    rules: conditionalRules
+                });
+            }
+
+            worksheet.columns.forEach(column => {
+                let maxLen = 15;
+                column.eachCell({ includeEmpty: true }, cell => {
+                    const valueStr = cell.value ? String(cell.value) : '';
+                    if (valueStr.length > maxLen) maxLen = valueStr.length;
+                });
+                column.width = maxLen + 4;
+            });
+
+            workbook.xlsx.writeBuffer().then(buffer => {
+                const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `Relatorio_backoffice_Diario.xlsx`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }).catch(err => {
+                console.error("Erro ao gerar buffer do Excel:", err);
+                alert("Erro interno da biblioteca ao baixar Excel: " + err.message);
+            });
+
+        } catch (err) {
+            console.error("Erro na execução do Excel:", err);
+            alert("Erro ao preparar dados para o Excel: " + err.message);
+        }
+    }
+
+    function clearAllData() { 
+        if(confirm("Limpar tudo? Isso apagará a planilha em cache e o progresso salvo.")) { 
+            localStorage.removeItem(STORAGE_KEY); 
+            localStorage.removeItem(DATA_CACHE_KEY); 
+            location.reload(); 
+        } 
+    }
+
+    document.addEventListener('click', () => { document.querySelectorAll(".checkboxes-dropdown").forEach(d => d.style.display = "none"); });
+
+</script>
+</body>
+</html>
+
+
+
